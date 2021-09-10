@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 const cheerio = require("cheerio");
 const axios = require("axios");
-const summarize = require('text-summarization')
+const summarize = require("text-summarization");
 const { get, children } = require("cheerio/lib/api/traversing");
 const { text } = require("cheerio/lib/api/manipulation");
 
@@ -24,9 +24,8 @@ app.post("/api/address", async (request, response) => {
   const { address } = request.body;
   const pageData = await getPageData(address);
   const dom = cheerio.load(pageData);
-  const body = dom("body *");
-  const extractedText = await getText(body);
-  const summary = await summarize( {text: extractedText[0]}, )
+  const extractedText = await getText(dom._root);
+  const summary = await summarize({ text: extractedText });
   response.send(summary.extractive);
 });
 
@@ -34,24 +33,44 @@ async function getText(elem) {
   let stack = [];
   let visited = [];
   let storage = [];
+  const nonWanted = [
+    "img",
+    "option",
+    "script",
+    "link",
+    "path",
+    "svg",
+    "g",
+    "polygon",
+    "meta",
+  ];
 
   stack.push(elem);
 
   while (stack.length > 0) {
     let current = stack.pop();
+
     if (current == null) continue;
+
     if (visited.includes(current)) continue;
+
     visited.push(current);
 
-    if (current.text()) {
-      storage.push(`${current.text()} `);
+    if (current.type === "text" && !nonWanted.includes(current.name)) {
+      storage.push(`${current.data} `);
     }
 
-    for (let i = 0; i < children.length; i++) {
-      stack.push(children[i]);
+
+
+    if (current.children?.length) {
+      for (const child of current.children) {
+        stack.push(child);
+      }
     }
   }
-  return storage;
+
+  // console.log(storage.join(' '))
+  return storage.join(" ");
 }
 
 async function getPageData(url) {
